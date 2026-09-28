@@ -1,0 +1,592 @@
+---
+title: "FinalExam-2802516895-Fransciska Olivia Putri Warae"
+author: "Fransciska Olivia Putri Warae"
+date: "2025-06-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+```
+
+
+# upload dataset
+```{r}
+data = read.csv("data_B.csv", header=T,sep=",")
+head(data)
+```
+
+```{r}
+summary(data)
+```
+
+# 1.  Data Quality Assessment and Preprocessing
+## a. Identify data quality issues
+### Missing values
+```{r}
+sum(is.na(data))
+```
+
+### Duplicate records
+```{r}
+sum(duplicated(data))
+```
+
+### Inconsistent or unknown categories
+```{r}
+cat_cols <- c("job", "marital", "education", "default", 
+              "housing", "loan", "contact", "month", 
+              "day_of_week", "poutcome", "y")
+
+for (col in cat_cols) {
+  cat("====", col, "====\n")
+  print(unique(data[[col]]))
+  cat("\n")
+}
+```
+
+Frequency distribution of the variable *job*
+```{r}
+table(data$job)
+```
+
+
+Frequency distribution of the variable *marital*
+```{r}
+table(data$marital)
+```
+
+Frequency distribution of the variable *education*
+```{r}
+table(data$education)
+```
+
+Frequency distribution of the variable *defaultd*
+```{r}
+table(data$default)
+```
+
+Frequency distribution of the variable *housing*
+```{r}
+table(data$housing)
+```
+
+Frequency distribution of the variable *loan*
+```{r}
+table(data$loan)
+```
+
+Frequency distribution of the variable *contact*
+```{r}
+table(data$contact)
+```
+
+Frequency distribution of the variable *month*
+```{r}
+table(data$month)
+```
+
+Frequency distribution of the variable *day_of_week*
+```{r}
+table(data$day_of_week)
+```
+
+Frequency distribution of the variable *poutcome*
+```{r}
+table(data$poutcome)
+```
+
+Frequency distribution of the variable *y*
+```{r}
+table(data$y)
+```
+
+
+### Outliers or extreme values
+
+outliers of the variable *x*
+```{r}
+length(boxplot.stats(data$X)$out)
+```
+
+outliers of the variable *age*
+```{r}
+length(boxplot.stats(data$age)$out)
+```
+
+outliers of the variable *duration*
+```{r}
+length(boxplot.stats(data$duration)$out)
+```
+
+outliers of the variable *campaign*
+```{r}
+length(boxplot.stats(data$campaign)$out)
+```
+
+outliers of the variable *pdays*
+```{r}
+length(boxplot.stats(data$pdays)$out)
+```
+
+outliers of the variable *previous*
+```{r}
+length(boxplot.stats(data$previous)$out)
+```
+
+outliers summary
+```{r}
+numeric_cols <- sapply(data, is.numeric)
+outlier_summary <- sapply(data[, numeric_cols], function(x) {
+  length(boxplot.stats(x)$out)
+})
+outlier_summary[outlier_summary > 0]
+```
+
+
+### Noisy or irrelevant values
+What I categorized as *noisy* variables are those that contain unknowns, data errors, or missing values.
+```{r}
+detect_noisy = function(data) {
+  noisy_counts = lapply(data, function(col) {
+    if (is.numeric(col)) {
+      sum(col %in% c(999, -1)) 
+    } else {
+      sum(col %in% c("unknown", "", "?", NA))
+    }
+  })
+  data.frame(variable = names(noisy_counts),
+             noisy_count = unlist(noisy_counts),
+             row.names = NULL)
+}
+detect_noisy(data)
+```
+except default, because half of it marked as "unknown"
+
+
+check noise of variable *age* by summary
+```{r}
+summary(data$age)
+```
+
+check noise of variable *duration* by summary
+```{r}
+summary(data$duration)
+```
+3785 seconds may be considered **noise** due to its significant deviation from the rest of the data.
+
+check noise of variable *campaign* by summary
+```{r}
+summary(data$campaign)
+```
+
+check noise of variable *pdays* by summary
+```{r}
+summary(data$pdays)
+```
+
+check noise of variable *previous* by summary
+```{r}
+summary(data$previous)
+```
+
+
+## b. Handle the Identified Issues
+Transformed into `clean_data`.
+```{r}
+clean_data = data
+summary(data)
+```
+
+Replace empty values (`""`) in the **job** column with `"unknown"` to make the data easier to analyze.
+```{r}
+clean_data$job[clean_data$job == ""] = "unknown"
+```
+
+Remove rows with `NA` values in the **duration** column to ensure more stable data.
+```{r}
+clean_data = clean_data[!is.na(clean_data$duration), ]
+```
+
+Check the percentage of `"unknown"` values in several variables.
+```{r}
+cols_to_check <- c("marital", "housing", "job", "loan", "education")
+
+sapply(cols_to_check, function(col) {
+  round(sum(data[[col]] == "unknown") / nrow(data) * 100, 2)
+})
+```
+drop "unknown" in  marital and job because lower than 5%
+
+Remove rows with `"unknown"` in the **marital** column since they account for only 0.21% of the data.
+```{r}
+clean_data = clean_data[clean_data$marital != "unknown", ]
+```
+
+Remove rows with `"unknown"` in the **job** column since they represent only 0.97% of the data.
+```{r}
+clean_data = clean_data[clean_data$job != "unknown", ]
+```
+
+Replace `"unknown"` in the **default** column with `"not_disclosed"` to use a more formal term indicating that the customer chose not to disclose the information.
+```{r}
+clean_data$default[clean_data$default %in% c("unknown", "")] = "not_disclosed"
+```
+
+Handle noise in the **duration** variable by removing outliers below the threshold (Q1 – 1.5 × IQR = 635).
+```{r}
+clean_data = clean_data[clean_data$duration <= 635, ]
+```
+
+Handle noise in the **campaign** variable by removing outliers below the threshold (Q1 – 1.5 × IQR = 6).
+```{r}
+clean_data <- clean_data[clean_data$campaign <= 6, ]
+```
+
+Handle noise in the **pdays** variable by converting it from numeric to categorical to make it easier to interpret.
+```{r}
+clean_data$pdays_contacted <- ifelse(clean_data$pdays == 999, "no", "yes")
+clean_data$pdays_contacted <- as.factor(clean_data$pdays_contacted)
+table(clean_data$pdays_contacted)
+```
+
+
+Handle the **y** variable by converting it into a binary format (yes/no) to simplify analysis.
+```{r}
+clean_data$previous_contacted <- ifelse(clean_data$previous == 0, "no", "yes")
+clean_data$previous_contacted <- as.factor(clean_data$previous_contacted)
+table(clean_data$previous_contacted)
+```
+
+Variable	Noisy Values
+1. job	"unknown" or NA	Doesn’t specify employment information
+2. marital	"unknown"	Extremely rare (0.2%) not informative
+3. education	"unknown"	(0.86%) not informative
+4. default	"unknown" Does not clarify credit history; should be relabeled 
+5. housing/loan	"unknown"	Lacks clarity on financial obligations
+6. duration	Extremely high values like 3785s	Outliers: contact >1 hour is likely abnormal
+7. pdays	999	Code for “never contacted before”; not a real count
+8. previous	All 0s	Can be interpreted, but might skew average as most people have 0 prior contacts
+
+Check the summary of the final results.
+
+summary of **clean data**
+```{r}
+summary(clean_data)
+```
+
+Check the default column to confirm that "unknown" values have been successfully replaced with "not_disclosed"
+```{r}
+table(clean_data$default)
+```
+
+
+## c. Summary statistics and initial exploration
+#### Calculate central tendency and variability for numerical columns
+Central Tendency = mean, median, mode
+Variability = standard deviation, min, max, IQR
+```{r}
+numeric_cols = sapply(clean_data, is.numeric)
+
+summary_stats = data.frame(
+  Mean   = sapply(clean_data[numeric_cols], mean),
+  Median = sapply(clean_data[numeric_cols], median),
+  SD     = sapply(clean_data[numeric_cols], sd),
+  Min    = sapply(clean_data[numeric_cols], min),
+  Max    = sapply(clean_data[numeric_cols], max),
+  IQR    = sapply(clean_data[numeric_cols], IQR)
+)
+
+print(round(summary_stats))
+
+```
+
+#### Create a summary table to explore one variable across categories
+
+age by job type
+```{r}
+library(dplyr)
+
+clean_data %>%
+  group_by(job) %>%
+  summarise(
+    Count = n(),
+    Mean_Age = mean(age),
+    Median_Age = median(age),
+    Min_Age = min(age),
+    Max_Age = max(age),
+    SD_Age = sd(age)
+  ) %>%
+  arrange(desc(Mean_Age))
+
+```
+
+duration by job type
+```{r}
+clean_data %>%
+  group_by(job) %>%
+  summarise(
+    Mean_Duration = mean(duration),
+    Median_Duration = median(duration),
+    SD_Duration = sd(duration),
+    Count = n()
+  )
+
+
+```
+
+age by marital
+```{r}
+clean_data %>%
+  group_by(marital) %>%
+  summarise(
+    Count = n(),
+    Mean_Age = mean(age),
+    Median_Age = median(age),
+    Min_Age = min(age),
+    Max_Age = max(age),
+    SD_Age = sd(age)
+  )
+
+```
+
+duration by y
+```{r}
+clean_data %>%
+  group_by(y) %>%
+  summarise(
+    Count = n(),
+    Mean_Duration = mean(duration),
+    Median_Duration = median(duration),
+    Min_Duration = min(duration),
+    Max_Duration = max(duration),
+    SD_Duration = sd(duration)
+  )
+```
+
+
+# 2. Relationship Analysis
+I will use the following three variables:
+
+1. **Duration** – If a customer engages in a longer conversation, it likely indicates higher interest or openness to the offer.
+2. **Poutcome** – If a customer was successfully converted in a previous campaign, they are more likely to respond positively again.
+3. **Previous\_contacted** – This can indicate the intensity of the bank's outreach efforts toward the customer.
+
+
+## a. variable relationship
+**duration and poutcome (numerik dan kategorikal)**
+Use **Kendall** correlation because the data contains many tied ranks, and Kendall is more stable and reliable in such cases.
+```{r}
+clean_data$poutcome = factor(clean_data$poutcome,
+                              levels = c("nonexistent", "failure", "success"),
+                              ordered = TRUE)
+clean_data$poutcome_numeric = as.numeric(clean_data$poutcome)
+cor.test(clean_data$duration, clean_data$poutcome_numeric, method = "kendall")
+```
+**1.013e^-05^ < 0.05 → Reject H0**
+There is a very weak but statistically significant positive relationship between **poutcome** and **duration**. Customers with a successful previous campaign outcome tend to have slightly longer contact durations. However, due to the very low correlation coefficient, the practical impact on duration is minimal.
+
+**Pattern:** The longer the conversation, the higher the likelihood of a successful campaign. Duration may reflect the customer’s interest or level of engagement.
+
+
+
+**duration and previous_contacted (numerik dan kategorikal)**
+Since **previous_contacted** is an ordinal variable (with 1 = "no" and 2 = "yes") and does not meet the normality assumption required for Pearson correlation, **Spearman** correlation is the most appropriate choice.
+```{r}
+clean_data$previous_contacted_numeric = as.numeric(clean_data$previous_contacted)
+cor.test(clean_data$duration, clean_data$previous_contacted_numeric, method = "kendall")
+```
+**6.08e^-05^ < 0.05 → Reject H₀**
+There is a very weak but statistically significant positive relationship between **duration** and **previous_contacted**. Customers who have been contacted before tend to engage in slightly longer conversations during the current contact. However, the strength of this relationship is too small to serve as a primary predictive factor.
+
+**Pattern:** Previous contact may make clients more familiar with the campaign, leading to longer discussions.
+
+**poutcome and previous contacted (kategorik dan kategorik)**
+```{r}
+table_poutcome_prev = table(clean_data$poutcome, clean_data$previous_contacted)
+table_poutcome_prev 
+```
+**previous_contacted**: Indicates whether the client has been contacted before (yes/no)
+**poutcome**: If the client has been contacted, this shows the outcome of the previous campaign
+
+If a client has **never been contacted before**, then there logically **cannot be a previous campaign outcome** → thus, **poutcome = "nonexistent"**
+If a client **has been contacted**, then the outcome could be either **"success"** or **"failure"**
+
+```{r}
+chisq.test(table_poutcome_prev)
+```
+Since **poutcome** directly depends on whether the customer has been previously contacted (**previous\_contacted**), only one of these two variables should be used in further analysis to avoid redundant information.
+
+**Pattern:** *Poutcome* only appears if the client has been contacted before. Therefore, **poutcome** and **previous\_contacted** convey highly similar information.
+
+
+## b. Feature engineering
+#### **age_group with levels: "<30", "30–50", ">50"**
+```{r}
+clean_data = clean_data %>%
+  mutate(age_group = case_when(
+    age <= 29 ~ "young",
+    age <= 50 ~ "adult",
+    age >  50 ~ "elder"
+  )) %>%
+  mutate(age_group = factor(age_group, levels = c("young", "adult", "elder"), ordered = TRUE))
+```
+
+```{r}
+table(clean_data$age_group)
+```
+
+#### **recency_level based on pdays: "never", "recent", "old"**
+```{r}
+clean_data$recency_level = ifelse(
+  clean_data$pdays == 999, "never",
+  ifelse(clean_data$pdays <= 5, "recent", "old")
+)
+```
+
+```{r}
+clean_data$recency_level = factor(
+  clean_data$recency_level,
+  levels = c("never", "recent", "old"),
+  ordered = TRUE
+)
+```
+
+```{r}
+table(clean_data$recency_level)
+```
+
+#### **total_contact_score = campaign + previous**
+```{r}
+clean_data$total_contact_score = clean_data$campaign + clean_data$previous
+```
+
+summary of total_contact_score
+```{r}
+summary(clean_data$total_contact_score)
+```
+
+## c. Interactive visualizations of relationships
+
+#### A chart comparing two categorical variables
+**recency_level and y (hasil kampanye)**
+To understand whether the **most recent contact timing** influences the client's decision to subscribe to the product.
+```{r}
+library(ggplot2)
+library(plotly)
+```
+
+```{r}
+df1 = count(clean_data, contact, y)
+df1
+```
+
+```{r}
+plot_ly(data = df1, x = ~contact, y = ~n, color = ~y, type = "bar") %>%
+  layout(barmode = "group",
+         title = "Campaign Outcome Grouped by Contact Method",
+         xaxis = list(title = "Contact Method"),
+         yaxis = list(title = "Number of Clients"),
+         legend = list(title = list(text = "Campaign Outcome")))
+
+```
+**Telephone** appears to be ineffective in acquiring new customers. Future marketing strategies could focus more on **cellular** channels instead.
+
+
+#### A chart comparing one numeric and one categorical
+**duration and poutcome**
+To examine whether the **current contact duration** varies depending on the **outcome of the previous campaign**.
+```{r}
+plot_ly(clean_data, x = ~poutcome, y = ~duration, type = "box", color = ~poutcome) %>%
+  layout(title = "Duration of Contact by Outcome of Previous Campaign",
+         xaxis = list(title = "Previous Campaign Outcome"),
+         yaxis = list(title = "Duration (seconds)"))
+```
+
+A successful previous campaign may encourage agents to engage in longer interactions, possibly due to a higher likelihood of conversion. This suggests a potential **positive relationship** between the outcome of the previous campaign and the **duration** of contact.
+
+#### A multi-dimensional chart, e.g., faceted by month or grouped by education
+**y, contact, and education**
+To examine whether clients with different **education levels** respond differently to various **contact methods**, and how this influences the **success of the campaign**.
+
+```{r}
+clean_data$education_grouped = case_when(
+  clean_data$education %in% c("basic.4y", "basic.6y", "basic.9y") ~ "basic",
+  clean_data$education == "high.school" ~ "high_school",
+  clean_data$education == "professional.course" ~ "professional",
+  clean_data$education == "university.degree" ~ "university",
+  TRUE ~ "other"
+)
+table(clean_data$education_grouped)
+```
+
+```{r}
+df3 = clean_data %>%
+  count(education_grouped, contact, y)
+df3
+```
+
+```{r}
+plots <- df3 %>%
+  split(.$education_grouped) %>%
+  lapply(function(df_sub) {
+    plot_ly(df_sub, x = ~y, y = ~n, color = ~contact, type = "bar") %>%
+      layout(title = paste("Education:", unique(df_sub$education_grouped)),
+             showlegend = FALSE)
+  })
+
+subplot(plots, nrows = 1, shareY = TRUE, titleX = TRUE) %>%
+  layout(title = "Campaign Outcome by Contact Method, Faceted by Education")
+```
+y is champagne outcome
+from left to right are = basic, highschool, other, professional, university
+Based on this visualization, the marketing team may consider focusing campaign efforts more on highly educated clients through cellular contact, as the likelihood of success is relatively higher in this segment.
+
+
+# 3. Insight Storytelling and Recommendations
+## a. Data storytelling through visual design
+
+**1. Contact Method and Campaign Outcome (y)**
+Key Finding: Clients contacted via cellular are more likely to subscribe than those contacted via telephone.
+
+```{r}
+df1 <- count(clean_data, contact, y)
+
+plot_ly(data = df1, x = ~y, y = ~n, color = ~contact, type = "bar") %>%
+  layout(title = "Campaign Success Rate by Contact Method",
+         xaxis = list(title = "Campaign Outcome"),
+         yaxis = list(title = "Number of Clients"),
+         barmode = "group")
+```
+
+
+**2. Duration and Poutcome**
+Key Finding: Clients with a successful previous outcome had longer average call durations.
+```{r}
+d_p = clean_data %>%
+  group_by(poutcome) %>%
+  summarise(avg_duration = mean(duration, na.rm = TRUE))
+```
+
+```{r}
+plot_ly(data = d_p, x = ~poutcome, y = ~avg_duration, type = "bar",
+        color = ~poutcome) %>%
+  layout(title = "Average Call Duration by Previous Outcome",
+         xaxis = list(title = "Previous Campaign Outcome"),
+         yaxis = list(title = "Average Duration (seconds)"))
+```
+
+
+
+## b. Interpret your findings
+The median age of clients is 38 years, and the average duration of successful contact is around 254 seconds. Most clients fall in the “adult” age group, but the “elder” group shows the lowest response rate to marketing campaigns. Interestingly, clients who were previously contacted or had a “successful” outcome in past campaigns tend to have longer call durations. However, a longer call does not necessarily cause success, it may reflect more engaged conversations after interest is detected. These patterns suggest targeting and message timing are key to improving campaign outcomes.
+
+
+## c. Make business recommendations
+**1. Prioritize follow-up clients who had a successful outcome in previous campaigns.**
+Clients with a prior "success" outcome and longer call durations showed higher subscription rates. This indicates that warm leads are more likely to convert, especially when contact duration exceeds 150 seconds. Focusing future efforts on this segment can increase efficiency and ROI.
+
+**2. Optimize resource allocation by avoiding very short calls (under 30 seconds).**
+My analysis shows that extremely short calls rarely lead to a positive campaign outcome. Calls shorter than 30 seconds are often associated with failures or disinterest. Establishing a minimum engagement threshold can help filter uninterested clients early and allow more time for promising leads.
+
+
